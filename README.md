@@ -2,6 +2,8 @@
 
 A collection of interactive canvas demos including metaballs, grid animations, bounce physics, and more — hosted on GitHub Pages.
 
+[Preview](https://markvinknl.github.io/experimental/)
+
 ## Structure
 
 Each demo lives in its own folder containing an `index.html`:
