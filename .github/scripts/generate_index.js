@@ -8,6 +8,7 @@ const path = require("path");
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const OUTPUT_FILE = path.join(REPO_ROOT, "index.html");
+const STUB_FILE = path.join(__dirname, "../stub/index.html");
 const SKIP_DIRS = new Set([".git", ".github", "node_modules"]);
 
 function findIndexFiles(dir, results = []) {
@@ -61,83 +62,8 @@ function generateHtml(tree) {
     })
     .join("\n\n");
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Project Index</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      font-family: system-ui, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-      background: #0d1117;
-      color: #c9d1d9;
-    }
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: 0.25rem;
-      color: #e6edf3;
-    }
-    p.subtitle {
-      color: #8b949e;
-      margin-top: 0;
-      margin-bottom: 2rem;
-      font-size: 0.95rem;
-    }
-    section { margin-bottom: 2rem; }
-    h2 {
-      font-size: 1.1rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #58a6ff;
-      border-bottom: 1px solid #21262d;
-      padding-bottom: 0.4rem;
-      margin-bottom: 0.75rem;
-    }
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-    }
-    li a {
-      display: inline-block;
-      padding: 0.35rem 0.75rem;
-      border-radius: 6px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    li a:hover {
-      border-color: #58a6ff;
-      color: #58a6ff;
-    }
-    h3 {
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #8b949e;
-      margin: 1rem 0 0.4rem;
-    }
-  </style>
-</head>
-<body>
-  <h1>Project Index</h1>
-  <p class="subtitle">Auto-generated index of all demos in this repository.</p>
-
-${sectionsHtml}
-</body>
-</html>
-`;
+  const stub = fs.readFileSync(STUB_FILE, "utf-8");
+  return stub.replace("  <!-- GENERATED_CONTENT -->", sectionsHtml);
 }
 
 const paths = findIndexFiles(REPO_ROOT).sort();
