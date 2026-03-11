@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Bounce</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      .links {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+
+        ul {
+          display: flex;
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        li {
+          display: block;
+          padding: 0.5rem;
+          gap: 2rem;
+        }
+
+        a {
+          text-decoration: none;
+          color: #333;
+          font-weight: bold;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="links">
+      <ul>
+        <li>
+          <a href="./index.html">Base</a>
+          <a href="./gravity.html">Gravity</a>
+          <a href="./opacity.html">Opacity</a>
+          <a href="./edge.html">Edge</a>
+        </li>
+      </ul>
+    </div>
+    <canvas id="myCanvas"></canvas>
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      // Settings
+      const settings = {
+        mouseRepulsionForce: 0.75,
+        mouseRepulsionSize: 100,
+        circleSizeSpread: 20,
+        circleCount: 500,
+        circleBounce: 0.5,
+        circleMaxSpeed: 10,
+        groupMinSize: 3,
+        groupMaxDistance: 50,
+        attractionStrength: 0.25,
+        backgroundColor: "rgba(255, 255, 255, 1.0)",
+        circleColor: "rgba(0, 0, 255, 1)",
+        minOpacity: 0.1,
+        smoothingFactor: 0.05,
+      };
+
+      // Circle class
+      class Circle {
+        constructor(x, y, vx, vy, radius) {
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.radius = radius;
+          this.opacity = 0.7;
+          this.targetOpacity = 0.7;
+        }
+
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+
+          // Bounce off walls
+          if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+            this.vx *= -1;
+            this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+          }
+          if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+            this.vy *= -1;
+            this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+          }
+
+          // Apply friction
+          this.vx *= 0.99;
+          this.vy *= 0.99;
+
+          // Limit max speed
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > settings.circleMaxSpeed) {
+            this.vx = (this.vx / speed) * settings.circleMaxSpeed;
+            this.vy = (this.vy / speed) * settings.circleMaxSpeed;
+          }
+
+          // Smooth opacity
+          this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor;
+        }
+
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0, 0, 255, ${this.opacity})`;
+          ctx.fill();
+        }
+
+        distanceTo(other) {
+          return Math.sqrt((this.x - other.x) ** 2 + (this.y - other.y) ** 2);
+        }
+      }
+
+      // Mouse tracking
+      let mouse = { x: 0, y: 0, prevX: 0, prevY: 0, speed: 0 };
+
+      canvas.addEventListener("mousemove", (e) => {
+        mouse.prevX = mouse.x;
+        mouse.prevY = mouse.y;
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.speed = Math.sqrt((mouse.x - mouse.prevX) ** 2 + (mouse.y - mouse.prevY) ** 2);
+      });
+
+      // Create circles
+      const circles = [];
+      const numCircles = settings.circleCount;
+      for (let i = 0; i < numCircles; i++) {
+        const radius = Math.random() * settings.circleSizeSpread + 5;
+        const x = Math.random() * (canvas.width - radius * 2) + radius;
+        const y = Math.random() * (canvas.height - radius * 2) + radius;
+        const vx = (Math.random() - 0.5) * 4;
+        const vy = (Math.random() - 0.5) * 4;
+        circles.push(new Circle(x, y, vx, vy, radius));
+      }
+
+      function animate() {
+        ctx.fillStyle = settings.backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Update and draw circles
+        circles.forEach((circle) => {
+          // Mouse interaction
+          const distToMouse = Math.sqrt((circle.x - mouse.x) ** 2 + (circle.y - mouse.y) ** 2);
+          if (distToMouse < settings.mouseRepulsionSize) {
+            const force = ((settings.mouseRepulsionSize - distToMouse) / settings.mouseRepulsionSize) * mouse.speed * settings.mouseRepulsionForce;
+            const angle = Math.atan2(circle.y - mouse.y, circle.x - mouse.x);
+            circle.vx += Math.cos(angle) * force;
+            circle.vy += Math.sin(angle) * force;
+          }
+
+          // Gravity: attract towards group center
+          let groupX = circle.x;
+          let groupY = circle.y;
+          let groupCount = 1;
+          circles.forEach((other) => {
+            if (other !== circle) {
+              const dist = circle.distanceTo(other);
+              if (dist < settings.groupMaxDistance) {
+                groupX += other.x;
+                groupY += other.y;
+                groupCount++;
+              }
+            }
+          });
+          if (groupCount >= settings.groupMinSize) {
+            groupX /= groupCount;
+            groupY /= groupCount;
+            circle.groupCenter = { x: groupX, y: groupY };
+            const distToCenter = Math.sqrt((circle.x - groupX) ** 2 + (circle.y - groupY) ** 2);
+            if (distToCenter > 0) {
+              const force = settings.attractionStrength * Math.max(0, (settings.groupMaxDistance - distToCenter) / settings.groupMaxDistance);
+              const angle = Math.atan2(groupY - circle.y, groupX - circle.x);
+              circle.vx += Math.cos(angle) * force;
+              circle.vy += Math.sin(angle) * force;
+            }
+          } else {
+            circle.groupCenter = null;
+          }
+
+          // Calculate target opacity
+          if (circle.groupCenter) {
+            const dist = Math.sqrt((circle.x - circle.groupCenter.x) ** 2 + (circle.y - circle.groupCenter.y) ** 2);
+            circle.targetOpacity = Math.max(settings.minOpacity, 1 - dist / settings.groupMaxDistance);
+          } else {
+            circle.targetOpacity = 0.7;
+          }
+
+          circle.update();
+          circle.draw();
+        });
+
+        // Check collisions between circles
+        for (let i = 0; i < circles.length; i++) {
+          for (let j = i + 1; j < circles.length; j++) {
+            const c1 = circles[i];
+            const c2 = circles[j];
+            const dist = c1.distanceTo(c2);
+            if (dist < c1.radius + c2.radius) {
+              // Simple collision response
+              const overlap = c1.radius + c2.radius - dist;
+              const angle = Math.atan2(c2.y - c1.y, c2.x - c1.x);
+              const force = overlap * settings.circleBounce;
+              c1.vx -= Math.cos(angle) * force;
+              c1.vy -= Math.sin(angle) * force;
+              c2.vx += Math.cos(angle) * force;
+              c2.vy += Math.sin(angle) * force;
+
+              // Separate circles
+              c1.x -= Math.cos(angle) * overlap * 0.5;
+              c1.y -= Math.sin(angle) * overlap * 0.5;
+              c2.x += Math.cos(angle) * overlap * 0.5;
+              c2.y += Math.sin(angle) * overlap * 0.5;
+            }
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
