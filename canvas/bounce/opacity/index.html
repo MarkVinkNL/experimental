@@ -52,10 +52,10 @@
     <div class="links">
       <ul>
         <li>
-          <a href="./index.html">Base</a>
-          <a href="./gravity.html">Gravity</a>
-          <a href="./opacity.html">Opacity</a>
-          <a href="./edge.html">Edge</a>
+          <a href="../base/">Base</a>
+          <a href="../gravity/">Gravity</a>
+          <a href="../opacity/">Opacity</a>
+          <a href="../edge/">Edge</a>
         </li>
       </ul>
     </div>
@@ -79,7 +79,7 @@
         circleSizeSpread: 20,
         circleCount: 500,
         circleBounce: 0.5,
-        circleMaxSpeed: 30,
+        circleMaxSpeed: 10,
         groupMinSize: 3,
         groupMaxDistance: 50,
         attractionStrength: 0.25,
@@ -87,8 +87,6 @@
         circleColor: "rgba(0, 0, 255, 1)",
         minOpacity: 0.1,
         smoothingFactor: 0.05,
-        edgeRepulsionStrength: 20,
-        edgeRepulsionDistance: 100,
       };
 
       // Circle class
@@ -104,21 +102,6 @@
         }
 
         update() {
-          // Edge repulsion
-          if (this.x < settings.edgeRepulsionDistance) {
-            this.vx += (settings.edgeRepulsionStrength * (settings.edgeRepulsionDistance - this.x)) / settings.edgeRepulsionDistance;
-          }
-          if (this.x > canvas.width - settings.edgeRepulsionDistance) {
-            this.vx -= (settings.edgeRepulsionStrength * (this.x - (canvas.width - settings.edgeRepulsionDistance))) / settings.edgeRepulsionDistance;
-          }
-          if (this.y < settings.edgeRepulsionDistance) {
-            this.vy += (settings.edgeRepulsionStrength * (settings.edgeRepulsionDistance - this.y)) / settings.edgeRepulsionDistance;
-          }
-          if (this.y > canvas.height - settings.edgeRepulsionDistance) {
-            this.vy -=
-              (settings.edgeRepulsionStrength * (this.y - (canvas.height - settings.edgeRepulsionDistance))) / settings.edgeRepulsionDistance;
-          }
-
           this.x += this.vx;
           this.y += this.vy;
 

@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "generate": "node .github/scripts/generate_index.js"
+  }
+}

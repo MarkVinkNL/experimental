@@ -52,10 +52,10 @@
     <div class="links">
       <ul>
         <li>
-          <a href="./index.html">Base</a>
-          <a href="./gravity.html">Gravity</a>
-          <a href="./opacity.html">Opacity</a>
-          <a href="./edge.html">Edge</a>
+          <a href="../base/">Base</a>
+          <a href="../gravity/">Gravity</a>
+          <a href="../opacity/">Opacity</a>
+          <a href="../edge/">Edge</a>
         </li>
       </ul>
     </div>
@@ -79,7 +79,16 @@
         circleSizeSpread: 20,
         circleCount: 500,
         circleBounce: 0.5,
-        circleMaxSpeed: 10,
+        circleMaxSpeed: 30,
+        groupMinSize: 3,
+        groupMaxDistance: 50,
+        attractionStrength: 0.25,
+        backgroundColor: "rgba(255, 255, 255, 1.0)",
+        circleColor: "rgba(0, 0, 255, 1)",
+        minOpacity: 0.1,
+        smoothingFactor: 0.05,
+        edgeRepulsionStrength: 20,
+        edgeRepulsionDistance: 100,
       };
 
       // Circle class
@@ -90,9 +99,26 @@
           this.vx = vx;
           this.vy = vy;
           this.radius = radius;
+          this.opacity = 0.7;
+          this.targetOpacity = 0.7;
         }
 
         update() {
+          // Edge repulsion
+          if (this.x < settings.edgeRepulsionDistance) {
+            this.vx += (settings.edgeRepulsionStrength * (settings.edgeRepulsionDistance - this.x)) / settings.edgeRepulsionDistance;
+          }
+          if (this.x > canvas.width - settings.edgeRepulsionDistance) {
+            this.vx -= (settings.edgeRepulsionStrength * (this.x - (canvas.width - settings.edgeRepulsionDistance))) / settings.edgeRepulsionDistance;
+          }
+          if (this.y < settings.edgeRepulsionDistance) {
+            this.vy += (settings.edgeRepulsionStrength * (settings.edgeRepulsionDistance - this.y)) / settings.edgeRepulsionDistance;
+          }
+          if (this.y > canvas.height - settings.edgeRepulsionDistance) {
+            this.vy -=
+              (settings.edgeRepulsionStrength * (this.y - (canvas.height - settings.edgeRepulsionDistance))) / settings.edgeRepulsionDistance;
+          }
+
           this.x += this.vx;
           this.y += this.vy;
 
@@ -116,12 +142,15 @@
             this.vx = (this.vx / speed) * settings.circleMaxSpeed;
             this.vy = (this.vy / speed) * settings.circleMaxSpeed;
           }
+
+          // Smooth opacity
+          this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor;
         }
 
         draw() {
           ctx.beginPath();
           ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(0, 0, 255, 0.7)";
+          ctx.fillStyle = `rgba(0, 0, 255, ${this.opacity})`;
           ctx.fill();
         }
 
@@ -154,7 +183,8 @@
       }
 
       function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = settings.backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Update and draw circles
         circles.forEach((circle) => {
@@ -165,6 +195,43 @@
             const angle = Math.atan2(circle.y - mouse.y, circle.x - mouse.x);
             circle.vx += Math.cos(angle) * force;
             circle.vy += Math.sin(angle) * force;
+          }
+
+          // Gravity: attract towards group center
+          let groupX = circle.x;
+          let groupY = circle.y;
+          let groupCount = 1;
+          circles.forEach((other) => {
+            if (other !== circle) {
+              const dist = circle.distanceTo(other);
+              if (dist < settings.groupMaxDistance) {
+                groupX += other.x;
+                groupY += other.y;
+                groupCount++;
+              }
+            }
+          });
+          if (groupCount >= settings.groupMinSize) {
+            groupX /= groupCount;
+            groupY /= groupCount;
+            circle.groupCenter = { x: groupX, y: groupY };
+            const distToCenter = Math.sqrt((circle.x - groupX) ** 2 + (circle.y - groupY) ** 2);
+            if (distToCenter > 0) {
+              const force = settings.attractionStrength * Math.max(0, (settings.groupMaxDistance - distToCenter) / settings.groupMaxDistance);
+              const angle = Math.atan2(groupY - circle.y, groupX - circle.x);
+              circle.vx += Math.cos(angle) * force;
+              circle.vy += Math.sin(angle) * force;
+            }
+          } else {
+            circle.groupCenter = null;
+          }
+
+          // Calculate target opacity
+          if (circle.groupCenter) {
+            const dist = Math.sqrt((circle.x - circle.groupCenter.x) ** 2 + (circle.y - circle.groupCenter.y) ** 2);
+            circle.targetOpacity = Math.max(settings.minOpacity, 1 - dist / settings.groupMaxDistance);
+          } else {
+            circle.targetOpacity = 0.7;
           }
 
           circle.update();
