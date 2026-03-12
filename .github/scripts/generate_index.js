@@ -29,6 +29,11 @@ function findIndexFiles(dir, results = []) {
   return results;
 }
 
+function cleanName(name) {
+  // Remove leading "number." prefix, e.g. "0.work" → "work", "3.animate_open" → "animate_open"
+  return name.replace(/^\d+\./, "").replace(/_/g, " ");
+}
+
 function buildTree(paths) {
   // tree: { [top]: { [sub]: [{href, label}] } }
   const tree = {};
@@ -36,8 +41,8 @@ function buildTree(paths) {
     const dirs = p.split("/").slice(0, -1); // drop index.html
     const top = dirs[0];
     // middle folders between top and the last folder become the subcategory
-    const sub = dirs.length > 2 ? dirs.slice(1, -1).join(" / ") : "";
-    const label = dirs[dirs.length - 1];
+    const sub = dirs.length > 2 ? dirs.slice(1, -1).map(cleanName).join(" / ") : "";
+    const label = cleanName(dirs[dirs.length - 1]);
     ((tree[top] ??= {})[sub] ??= []).push({ href: p, label });
   }
   // Sort top-level and sub-level keys
