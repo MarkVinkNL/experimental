@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas Bounce</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: Arial, Helvetica, sans-serif;
+        background: radial-gradient(circle at top, #1e293b 0, #0f172a 55%, #0c1222 100%);
+      }
+      canvas {
+        display: block;
+      }
+      .links {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+
+        ul {
+          display: flex;
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        li {
+          display: block;
+          padding: 0.5rem;
+          gap: 2rem;
+        }
+
+        a {
+          text-decoration: none;
+          color: #333;
+          font-weight: bold;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="myCanvas"></canvas>
+    <script>
+      const canvas = document.getElementById("myCanvas");
+      const ctx = canvas.getContext("2d");
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      // Settings
+      const settings = {
+        mouseRepulsionForce: 0.75,
+        mouseRepulsionSize: 100,
+        circleSizeSpread: 20,
+        circleCount: 220,
+        circleBounce: 0.5,
+        circleMaxSpeed: 10,
+        groupMinSize: 3,
+        groupMaxDistance: 45,
+        attractionStrength: 0.25,
+        // visuals
+        circleColorRgb: "56, 189, 248", // cyan/blue
+        minOpacity: 0.1,
+        smoothingFactor: 0.05,
+        stretchAmount: 0.45,
+        stretchSmoothing: 0.12,
+        // virus behaviour
+        virusColorRgb: "250, 204, 21", // yellow
+        initialVirusCount: 100,
+        virusRadius: 3,
+        virusMaxSpeed: 6,
+        virusReproductionFactor: 7,
+        virusCapacityMultiplier: 0.05, // lower = fills up faster
+      };
+
+      // Circle class
+      class Circle {
+        constructor(x, y, vx, vy, radius) {
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.radius = radius;
+          this.opacity = 0.7;
+          this.targetOpacity = 0.7;
+          this.stretch = 0;
+          this.virusCount = 0;
+          this.virusCapacity = Math.max(4, Math.round((radius / settings.circleSizeSpread) * 20 * settings.virusCapacityMultiplier));
+          this.state = "healthy"; // healthy | infected | bursting | dead
+        }
+
+        update() {
+          if (this.state === "dead") {
+            this.targetOpacity = 0;
+            this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor * 1.5; // fade a bit faster
+            return;
+          }
+
+          this.x += this.vx;
+          this.y += this.vy;
+
+          // Bounce off walls
+          if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+            this.vx *= -1;
+            this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+          }
+          if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+            this.vy *= -1;
+            this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+          }
+
+          // Apply friction
+          this.vx *= 0.99;
+          this.vy *= 0.99;
+
+          // Limit max speed
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > settings.circleMaxSpeed) {
+            this.vx = (this.vx / speed) * settings.circleMaxSpeed;
+            this.vy = (this.vy / speed) * settings.circleMaxSpeed;
+          }
+
+          // Infection progression
+          if (this.virusCount > 0 && this.state === "healthy") {
+            this.state = "infected";
+          }
+          if (this.state === "infected" && this.virusCount >= this.virusCapacity) {
+            this.state = "bursting";
+          }
+
+          // Smooth opacity
+          this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor;
+
+          // Stress morph: stretch when moving fast (smoothed and clamped)
+          let targetStretch = (speed / settings.circleMaxSpeed) * settings.stretchAmount;
+          if (targetStretch < 0) targetStretch = 0;
+          if (targetStretch > settings.stretchAmount) targetStretch = settings.stretchAmount;
+          this.stretch += (targetStretch - this.stretch) * settings.stretchSmoothing;
+          if (this.stretch < 0) this.stretch = 0;
+        }
+
+        draw() {
+          const r = this.radius;
+          const o = this.opacity;
+          const s = Math.max(0, Math.min(0.8, this.stretch)); // clamp stretch for safety
+          const angle = Math.atan2(this.vy, this.vx);
+
+          const drawShape = (pathRadius, isEllipse) => {
+            ctx.beginPath();
+            if (isEllipse && s > 0.02) {
+              const a = pathRadius * (1 + s);
+              const b = pathRadius * (1 - s * 0.6);
+              const minor = Math.max(0.1, Math.min(a, b));
+              const major = Math.max(minor, Math.max(a, b));
+              ctx.ellipse(this.x, this.y, major, minor, angle, 0, Math.PI * 2);
+            } else {
+              ctx.arc(this.x, this.y, pathRadius, 0, Math.PI * 2);
+            }
+          };
+
+          // Cytoplasm
+          drawShape(r, true);
+          let baseColor = settings.circleColorRgb;
+          if (this.state === "infected" || this.state === "bursting") {
+            const infectionRatio = Math.min(1, this.virusCount / this.virusCapacity);
+            const mix = (c1, c2, t) => Math.round(c1 + (c2 - c1) * t);
+            const [br, bg, bb] = settings.circleColorRgb.split(",").map((v) => parseInt(v.trim(), 10));
+            const [yr, yg, yb] = settings.virusColorRgb.split(",").map((v) => parseInt(v.trim(), 10));
+            const rr = mix(br, yr, infectionRatio * 0.7);
+            const rg = mix(bg, yg, infectionRatio * 0.7);
+            const rb = mix(bb, yb, infectionRatio * 0.7);
+            baseColor = `${rr}, ${rg}, ${rb}`;
+          }
+          ctx.fillStyle = `rgba(${baseColor}, ${o * 0.6})`;
+          ctx.fill();
+          // Nucleus (stays circular, slightly scaled)
+          drawShape(r * 0.25, false);
+          ctx.fillStyle = `rgba(15, 23, 42, ${Math.min(1, o + 0.2)})`;
+          ctx.fill();
+          // Membrane
+          drawShape(r, true);
+          ctx.strokeStyle = `rgba(${baseColor}, ${o})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          // Draw internal virus particles as small yellow dots inside the cell
+          if (this.virusCount > 0 && this.state !== "dead") {
+            const maxDots = Math.min(this.virusCount, 40);
+            ctx.fillStyle = `rgba(${settings.virusColorRgb}, ${Math.min(1, 0.4 + this.virusCount / (this.virusCapacity * 2))})`;
+            for (let i = 0; i < maxDots; i++) {
+              const angleDot = (Math.PI * 2 * i) / maxDots + (this.x + this.y) * 0.01;
+              const radiusDot = r * 0.7 * Math.random();
+              const dx = Math.cos(angleDot) * radiusDot;
+              const dy = Math.sin(angleDot) * radiusDot;
+              ctx.beginPath();
+              ctx.arc(this.x + dx, this.y + dy, settings.virusRadius * 0.7, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+        }
+
+        distanceTo(other) {
+          return Math.sqrt((this.x - other.x) ** 2 + (this.y - other.y) ** 2);
+        }
+      }
+
+      // Mouse tracking
+      let mouse = { x: 0, y: 0, prevX: 0, prevY: 0, speed: 0 };
+
+      canvas.addEventListener("mousemove", (e) => {
+        mouse.prevX = mouse.x;
+        mouse.prevY = mouse.y;
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.speed = Math.sqrt((mouse.x - mouse.prevX) ** 2 + (mouse.y - mouse.prevY) ** 2);
+      });
+
+      // Create circles
+      const circles = [];
+      const numCircles = settings.circleCount;
+      for (let i = 0; i < numCircles; i++) {
+        const radius = Math.random() * settings.circleSizeSpread + 5;
+        const x = Math.random() * (canvas.width - radius * 2) + radius;
+        const y = Math.random() * (canvas.height - radius * 2) + radius;
+        const vx = (Math.random() - 0.5) * 4;
+        const vy = (Math.random() - 0.5) * 4;
+        circles.push(new Circle(x, y, vx, vy, radius));
+      }
+
+      // Virus particles
+      class VirusParticle {
+        constructor(x, y, vx, vy) {
+          this.x = x;
+          this.y = y;
+          this.vx = vx;
+          this.vy = vy;
+          this.radius = settings.virusRadius;
+          this.life = 1; // 1 = fresh, 0 = dead
+        }
+
+        update() {
+          this.x += this.vx;
+          this.y += this.vy;
+
+          // Soft bounce off walls
+          if (this.x - this.radius < 0 || this.x + this.radius > canvas.width) {
+            this.vx *= -1;
+            this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+          }
+          if (this.y - this.radius < 0 || this.y + this.radius > canvas.height) {
+            this.vy *= -1;
+            this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+          }
+
+          // Limit speed
+          const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          if (speed > settings.virusMaxSpeed) {
+            this.vx = (this.vx / speed) * settings.virusMaxSpeed;
+            this.vy = (this.vy / speed) * settings.virusMaxSpeed;
+          }
+
+          // Age / decay: slowly die if no host is found
+          // Roughly a few seconds at 60fps (e.g. 0.01 per frame ≈ 1.5s)
+          this.life -= 0.01;
+          if (this.life < 0) this.life = 0;
+        }
+
+        draw() {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          const alpha = 0.2 + 0.8 * this.life; // fade out as life→0
+          ctx.fillStyle = `rgba(${settings.virusColorRgb}, ${alpha})`;
+          ctx.shadowColor = `rgba(${settings.virusColorRgb}, ${0.6 * this.life})`;
+          ctx.shadowBlur = 6 * this.life;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+
+      const viruses = [];
+
+      function spawnVirus(x, y, count, speedScale = 1) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = (Math.random() * settings.virusMaxSpeed * 0.8 + 1) * speedScale;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+          viruses.push(new VirusParticle(x, y, vx, vy));
+        }
+      }
+
+      // initial free virus cloud
+      for (let i = 0; i < settings.initialVirusCount; i++) {
+        const x = Math.random() * canvas.width * 0.6 + canvas.width * 0.2;
+        const y = Math.random() * canvas.height * 0.6 + canvas.height * 0.2;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * settings.virusMaxSpeed;
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        viruses.push(new VirusParticle(x, y, vx, vy));
+      }
+
+      function animate() {
+        // gradient background (matching gravity variant)
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#1e293b");
+        gradient.addColorStop(0.5, "#0f172a");
+        gradient.addColorStop(1, "#0c1222");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Update and draw circles (cells)
+        circles.forEach((circle) => {
+          // Mouse interaction (only affects live cells)
+          if (circle.state !== "dead") {
+            const distToMouse = Math.sqrt((circle.x - mouse.x) ** 2 + (circle.y - mouse.y) ** 2);
+            if (distToMouse < settings.mouseRepulsionSize) {
+              const force = ((settings.mouseRepulsionSize - distToMouse) / settings.mouseRepulsionSize) * mouse.speed * settings.mouseRepulsionForce;
+              const angle = Math.atan2(circle.y - mouse.y, circle.x - mouse.x);
+              circle.vx += Math.cos(angle) * force;
+              circle.vy += Math.sin(angle) * force;
+            }
+          }
+
+          // Gravity: attract towards group center
+          let groupX = circle.x;
+          let groupY = circle.y;
+          let groupCount = 1;
+          circles.forEach((other) => {
+            if (other !== circle) {
+              const dist = circle.distanceTo(other);
+              if (dist < settings.groupMaxDistance) {
+                groupX += other.x;
+                groupY += other.y;
+                groupCount++;
+              }
+            }
+          });
+          if (groupCount >= settings.groupMinSize) {
+            groupX /= groupCount;
+            groupY /= groupCount;
+            circle.groupCenter = { x: groupX, y: groupY };
+            const distToCenter = Math.sqrt((circle.x - groupX) ** 2 + (circle.y - groupY) ** 2);
+            if (distToCenter > 0) {
+              const force = settings.attractionStrength * Math.max(0, (settings.groupMaxDistance - distToCenter) / settings.groupMaxDistance);
+              const angle = Math.atan2(groupY - circle.y, groupX - circle.x);
+              circle.vx += Math.cos(angle) * force;
+              circle.vy += Math.sin(angle) * force;
+            }
+          } else {
+            circle.groupCenter = null;
+          }
+
+          // Calculate target opacity
+          if (circle.groupCenter && circle.state !== "dead") {
+            const dist = Math.sqrt((circle.x - circle.groupCenter.x) ** 2 + (circle.y - circle.groupCenter.y) ** 2);
+            circle.targetOpacity = Math.max(settings.minOpacity, 1 - dist / settings.groupMaxDistance);
+          } else {
+            circle.targetOpacity = 0.7;
+          }
+
+          circle.update();
+          circle.draw();
+        });
+
+        // Update viruses and handle infection
+        for (let i = viruses.length - 1; i >= 0; i--) {
+          const v = viruses[i];
+          v.update();
+
+          // Kill off old particles that never found a host
+          if (v.life <= 0) {
+            viruses.splice(i, 1);
+            continue;
+          }
+
+          // Try to infect nearest cell
+          let targetCell = null;
+          let minDist = Infinity;
+          for (let j = 0; j < circles.length; j++) {
+            const c = circles[j];
+            if (c.state === "dead") continue;
+            const dx = v.x - c.x;
+            const dy = v.y - c.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < c.radius && dist < minDist) {
+              minDist = dist;
+              targetCell = c;
+            }
+          }
+
+          if (targetCell) {
+            targetCell.virusCount++;
+            // remove this virus: it merged into the cell
+            viruses.splice(i, 1);
+          }
+        }
+
+        // Handle bursting cells (spawn outward virus particles and then kill cell)
+        circles.forEach((cell) => {
+          if (cell.state === "bursting") {
+            const spawnCount = Math.round(cell.virusCapacity * settings.virusReproductionFactor);
+            // smaller cells explode faster, larger ones slower
+            const sizeRatio = cell.radius / (settings.circleSizeSpread + 5); // ~1 for biggest cells, <1 for small
+            const speedScale = 1.0 + (1 - sizeRatio) * 2.0; // small radius -> up to 3x, big -> ~1x
+            spawnVirus(cell.x, cell.y, spawnCount, speedScale);
+            cell.state = "dead";
+          }
+        });
+
+        // Draw viruses after cells so they appear above
+        viruses.forEach((v) => v.draw());
+
+        // Check collisions between circles
+        for (let i = 0; i < circles.length; i++) {
+          for (let j = i + 1; j < circles.length; j++) {
+            const c1 = circles[i];
+            const c2 = circles[j];
+            if (c1.state === "dead" && c2.state === "dead") continue;
+            const dist = c1.distanceTo(c2);
+            if (dist < c1.radius + c2.radius) {
+              // Simple collision response
+              const overlap = c1.radius + c2.radius - dist;
+              const angle = Math.atan2(c2.y - c1.y, c2.x - c1.x);
+              const force = overlap * settings.circleBounce;
+              c1.vx -= Math.cos(angle) * force;
+              c1.vy -= Math.sin(angle) * force;
+              c2.vx += Math.cos(angle) * force;
+              c2.vy += Math.sin(angle) * force;
+
+              // Separate circles
+              c1.x -= Math.cos(angle) * overlap * 0.5;
+              c1.y -= Math.sin(angle) * overlap * 0.5;
+              c2.x += Math.cos(angle) * overlap * 0.5;
+              c2.y += Math.sin(angle) * overlap * 0.5;
+            }
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
