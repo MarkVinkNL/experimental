@@ -1,0 +1,57 @@
+  <div class="back-button-wrapper" data-back-button-partial>
+    <a class="back-button-link" href="#" id="back-button-link">
+      ← Back to overview
+    </a>
+  </div>
+  <style>
+    .back-button-wrapper {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 1.5rem;
+      z-index: 9999;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .back-button-link {
+      display: inline-block;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      color: #e5e7eb;
+      font-size: 0.85rem;
+      text-decoration: none;
+      backdrop-filter: blur(10px);
+      box-shadow:
+        0 10px 30px rgba(15, 23, 42, 0.45),
+        0 0 0 1px rgba(15, 23, 42, 0.8);
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.1s ease;
+    }
+
+    .back-button-link:hover {
+      background: rgba(15, 23, 42, 0.96);
+      border-color: rgba(248, 250, 252, 0.8);
+      box-shadow:
+        0 12px 40px rgba(15, 23, 42, 0.7),
+        0 0 0 1px rgba(248, 250, 252, 0.05);
+      transform: translateY(-1px);
+    }
+  </style>
+  <script>
+    (function () {
+      var link = document.getElementById("back-button-link");
+      if (!link) return;
+
+      var parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts.length === 0) return;
+
+      // For GitHub Pages project sites, repo root is the first path segment.
+      var repoRoot = "/" + parts[0] + "/index.html";
+      link.href = repoRoot;
+    })();
+  </script>
+

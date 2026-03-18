@@ -23,6 +23,8 @@ jobs:
 
       - name: Generate index.html
         run: node .github/scripts/generate_index.js
+        env:
+          GH_WORKFLOW_BACK_BUTTON: "1"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

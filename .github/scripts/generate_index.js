@@ -8,7 +8,8 @@ const path = require("path");
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const OUTPUT_FILE = path.join(REPO_ROOT, "index.html");
-const STUB_FILE = path.join(__dirname, "../stub/index.html");
+const STUB_FILE = path.join(__dirname, "../stubs/index.html");
+const BACK_BUTTON_PARTIAL = path.join(__dirname, "../stubs/back-button.html");
 const SKIP_DIRS = new Set([".git", ".github", "node_modules"]);
 
 function findIndexFiles(dir, results = []) {
@@ -71,8 +72,49 @@ function generateHtml(tree) {
   return stub.replace("  <!-- GENERATED_CONTENT -->", sectionsHtml);
 }
 
+function injectBackButtonPartial(indexPaths) {
+  // Only inject when explicitly enabled from the workflow
+  if (process.env.GH_WORKFLOW_BACK_BUTTON !== "1") {
+    return;
+  }
+
+  const partial = fs.readFileSync(BACK_BUTTON_PARTIAL, "utf-8");
+
+  for (const rel of indexPaths) {
+    const abs = path.join(REPO_ROOT, rel);
+    let contents = fs.readFileSync(abs, "utf-8");
+
+    // Avoid duplicate injection if already present
+    if (contents.includes("data-back-button-partial")) {
+      continue;
+    }
+
+    let inserted = false;
+    const bodyClose = contents.lastIndexOf("</body>");
+    if (bodyClose !== -1) {
+      contents =
+        contents.slice(0, bodyClose) + partial + "\n" + contents.slice(bodyClose);
+      inserted = true;
+    } else {
+      const htmlClose = contents.lastIndexOf("</html>");
+      if (htmlClose !== -1) {
+        contents =
+          contents.slice(0, htmlClose) + partial + "\n" + contents.slice(htmlClose);
+        inserted = true;
+      }
+    }
+
+    if (inserted) {
+      fs.writeFileSync(abs, contents, "utf-8");
+    }
+  }
+}
+
 const paths = findIndexFiles(REPO_ROOT).sort();
 const tree = buildTree(paths);
 const html = generateHtml(tree);
 fs.writeFileSync(OUTPUT_FILE, html, "utf-8");
 console.log(`Written ${paths.length} links to ${OUTPUT_FILE}`);
+
+// Inject back button into all index.html files except the root one
+injectBackButtonPartial(paths);
