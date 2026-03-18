@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-function maybeInjectBackButton(indexPaths, { repoRoot, partialPath, enabled }) {
+function injectBackButton(indexPaths, { repoRoot, partialPath, enabled }) {
   if (!enabled) {
     return;
   }
@@ -36,4 +36,4 @@ function maybeInjectBackButton(indexPaths, { repoRoot, partialPath, enabled }) {
   }
 }
 
-module.exports = { maybeInjectBackButton };
+module.exports = { injectBackButton };
