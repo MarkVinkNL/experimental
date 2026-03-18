@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -8,7 +8,8 @@
       body {
         margin: 0;
         overflow: hidden;
-        font-family: Arial, Helvetica, sans-serif;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f9fafb;
       }
       canvas {
         display: block;
@@ -49,16 +50,6 @@
     </style>
   </head>
   <body>
-    <div class="links">
-      <ul>
-        <li>
-          <a href="../base/">Base</a>
-          <a href="../gravity/">Gravity</a>
-          <a href="../opacity/">Opacity</a>
-          <a href="../edge/">Edge</a>
-        </li>
-      </ul>
-    </div>
     <canvas id="myCanvas"></canvas>
     <script>
       const canvas = document.getElementById("myCanvas");
@@ -83,9 +74,9 @@
         groupMinSize: 3,
         groupMaxDistance: 50,
         attractionStrength: 0.25,
-        backgroundColor: "rgba(255, 255, 255, 1.0)",
-        circleColor: "rgba(0, 0, 255, 1)",
-        minOpacity: 0.1,
+        // visual
+        backgroundFade: "rgba(249, 250, 251, 0.36)",
+        minOpacity: 0.12,
         smoothingFactor: 0.05,
         edgeRepulsionStrength: 20,
         edgeRepulsionDistance: 100,
@@ -98,9 +89,13 @@
           this.y = y;
           this.vx = vx;
           this.vy = vy;
+          this.baseRadius = radius;
           this.radius = radius;
           this.opacity = 0.7;
           this.targetOpacity = 0.7;
+          // colorful, speed‑reactive styling
+          this.hue = 200 + Math.random() * 80; // blue‑purple range
+          this.speedFactor = 0;
         }
 
         update() {
@@ -145,12 +140,18 @@
 
           // Smooth opacity
           this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor;
+
+          // Track speed factor for color / glow
+          const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+          this.speedFactor += (Math.min(currentSpeed / settings.circleMaxSpeed, 1) - this.speedFactor) * 0.1;
         }
 
         draw() {
+          // subtle, solid colored circle (no large outer shadow)
+          const baseLightness = 55 + this.speedFactor * 20;
           ctx.beginPath();
           ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(0, 0, 255, ${this.opacity})`;
+          ctx.fillStyle = `hsla(${this.hue}, 80%, ${baseLightness + 5}%, ${this.opacity})`;
           ctx.fill();
         }
 
@@ -183,7 +184,8 @@
       }
 
       function animate() {
-        ctx.fillStyle = settings.backgroundColor;
+        // trails: gently fade the previous frame
+        ctx.fillStyle = settings.backgroundFade;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Update and draw circles
@@ -233,6 +235,18 @@
           } else {
             circle.targetOpacity = 0.7;
           }
+
+          // Edge proximity shaping (visual only)
+          const distLeft = circle.x;
+          const distRight = canvas.width - circle.x;
+          const distTop = circle.y;
+          const distBottom = canvas.height - circle.y;
+          const edgeDist = Math.min(distLeft, distRight, distTop, distBottom);
+          const edgeFactor = Math.max(0, Math.min(edgeDist / settings.edgeRepulsionDistance, 1));
+          // smaller & dimmer towards the very edge
+          const radiusScale = 0.65 + edgeFactor * 0.35;
+          circle.radius = circle.baseRadius * radiusScale;
+          circle.targetOpacity *= 0.5 + edgeFactor * 0.5;
 
           circle.update();
           circle.draw();

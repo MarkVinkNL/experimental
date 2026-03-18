@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -9,6 +9,7 @@
         margin: 0;
         overflow: hidden;
         font-family: Arial, Helvetica, sans-serif;
+        background: radial-gradient(circle at top, #1e293b 0, #0f172a 55%, #0c1222 100%);
       }
       canvas {
         display: block;
@@ -49,16 +50,6 @@
     </style>
   </head>
   <body>
-    <div class="links">
-      <ul>
-        <li>
-          <a href="../base/">Base</a>
-          <a href="../gravity/">Gravity</a>
-          <a href="../opacity/">Opacity</a>
-          <a href="../edge/">Edge</a>
-        </li>
-      </ul>
-    </div>
     <canvas id="myCanvas"></canvas>
     <script>
       const canvas = document.getElementById("myCanvas");
@@ -77,16 +68,18 @@
         mouseRepulsionForce: 0.75,
         mouseRepulsionSize: 100,
         circleSizeSpread: 20,
-        circleCount: 500,
+        circleCount: 350,
         circleBounce: 0.5,
         circleMaxSpeed: 10,
         groupMinSize: 3,
-        groupMaxDistance: 50,
+        groupMaxDistance: 45,
         attractionStrength: 0.25,
-        backgroundColor: "rgba(255, 255, 255, 1.0)",
-        circleColor: "rgba(0, 0, 255, 1)",
+        // visuals
+        circleColorRgb: "56, 189, 248", // cyan/blue
         minOpacity: 0.1,
         smoothingFactor: 0.05,
+        stretchAmount: 0.45,
+        stretchSmoothing: 0.12,
       };
 
       // Circle class
@@ -99,6 +92,7 @@
           this.radius = radius;
           this.opacity = 0.7;
           this.targetOpacity = 0.7;
+          this.stretch = 0;
         }
 
         update() {
@@ -128,13 +122,47 @@
 
           // Smooth opacity
           this.opacity += (this.targetOpacity - this.opacity) * settings.smoothingFactor;
+
+          // Stress morph: stretch when moving fast (smoothed and clamped)
+          let targetStretch = (speed / settings.circleMaxSpeed) * settings.stretchAmount;
+          if (targetStretch < 0) targetStretch = 0;
+          if (targetStretch > settings.stretchAmount) targetStretch = settings.stretchAmount;
+          this.stretch += (targetStretch - this.stretch) * settings.stretchSmoothing;
+          if (this.stretch < 0) this.stretch = 0;
         }
 
         draw() {
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(0, 0, 255, ${this.opacity})`;
+          const r = this.radius;
+          const o = this.opacity;
+          const s = Math.max(0, Math.min(0.8, this.stretch)); // clamp stretch for safety
+          const angle = Math.atan2(this.vy, this.vx);
+
+          const drawShape = (pathRadius, isEllipse) => {
+            ctx.beginPath();
+            if (isEllipse && s > 0.02) {
+              const a = pathRadius * (1 + s);
+              const b = pathRadius * (1 - s * 0.6);
+              const minor = Math.max(0.1, Math.min(a, b));
+              const major = Math.max(minor, Math.max(a, b));
+              ctx.ellipse(this.x, this.y, major, minor, angle, 0, Math.PI * 2);
+            } else {
+              ctx.arc(this.x, this.y, pathRadius, 0, Math.PI * 2);
+            }
+          };
+
+          // Cytoplasm
+          drawShape(r, true);
+          ctx.fillStyle = `rgba(${settings.circleColorRgb}, ${o * 0.6})`;
           ctx.fill();
+          // Nucleus (stays circular, slightly scaled)
+          drawShape(r * 0.25, false);
+          ctx.fillStyle = `rgba(15, 23, 42, ${Math.min(1, o + 0.2)})`;
+          ctx.fill();
+          // Membrane
+          drawShape(r, true);
+          ctx.strokeStyle = `rgba(${settings.circleColorRgb}, ${o})`;
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
         }
 
         distanceTo(other) {
@@ -166,7 +194,12 @@
       }
 
       function animate() {
-        ctx.fillStyle = settings.backgroundColor;
+        // gradient background (matching gravity variant)
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#1e293b");
+        gradient.addColorStop(0.5, "#0f172a");
+        gradient.addColorStop(1, "#0c1222");
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Update and draw circles

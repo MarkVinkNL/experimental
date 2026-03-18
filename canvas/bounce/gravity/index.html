@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -9,6 +9,7 @@
         margin: 0;
         overflow: hidden;
         font-family: Arial, Helvetica, sans-serif;
+        background: radial-gradient(circle at top, #1e293b 0, #0f172a 55%, #0c1222 100%);
       }
       canvas {
         display: block;
@@ -49,16 +50,6 @@
     </style>
   </head>
   <body>
-    <div class="links">
-      <ul>
-        <li>
-          <a href="../base/">Base</a>
-          <a href="../gravity/">Gravity</a>
-          <a href="../opacity/">Opacity</a>
-          <a href="../edge/">Edge</a>
-        </li>
-      </ul>
-    </div>
     <canvas id="myCanvas"></canvas>
     <script>
       const canvas = document.getElementById("myCanvas");
@@ -81,10 +72,13 @@
         circleBounce: 0.5,
         circleMaxSpeed: 10,
         groupMinSize: 3,
-        groupMaxDistance: 50,
-        attractionStrength: 0.025,
-        backgroundColor: "rgba(255, 255, 255, 1.0)",
-        circleColor: "rgba(0, 0, 255, 0.7)",
+        groupMaxDistance: 70,
+        attractionStrength: 0.03,
+        // visuals
+        circleColor: "rgba(96, 165, 250, 0.95)", // bright cyan/blue
+        lineColorRgb: "129, 140, 248", // indigo
+        lineMaxOpacity: 0.8,
+        lineMinOpacity: 0.15,
       };
 
       // Circle class
@@ -127,7 +121,10 @@
           ctx.beginPath();
           ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
           ctx.fillStyle = settings.circleColor;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = settings.circleColor;
           ctx.fill();
+          ctx.shadowBlur = 0;
         }
 
         distanceTo(other) {
@@ -159,7 +156,12 @@
       }
 
       function animate() {
-        ctx.fillStyle = settings.backgroundColor;
+        // gradient background (lighter slate/indigo)
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, "#1e293b"); // top - slate
+        gradient.addColorStop(0.5, "#0f172a");
+        gradient.addColorStop(1, "#0c1222"); // bottom
+        ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Update and draw circles
@@ -184,6 +186,18 @@
                 groupX += other.x;
                 groupY += other.y;
                 groupCount++;
+
+                // gravity lines between close neighbours (draw once per pair)
+                if (circle.x < other.x) {
+                  const t = Math.max(0, Math.min(1, 1 - dist / settings.groupMaxDistance));
+                  const opacity = settings.lineMinOpacity + t * (settings.lineMaxOpacity - settings.lineMinOpacity);
+                  ctx.beginPath();
+                  ctx.moveTo(circle.x, circle.y);
+                  ctx.lineTo(other.x, other.y);
+                  ctx.strokeStyle = `rgba(${settings.lineColorRgb}, ${opacity})`;
+                  ctx.lineWidth = 1.2;
+                  ctx.stroke();
+                }
               }
             }
           });
